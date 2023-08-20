@@ -10,6 +10,7 @@ from requests.exceptions import HTTPError
 import io
 import hashlib
 from subprocess import Popen
+import argparse
 
 import torch
 from torch import nn
@@ -350,6 +351,15 @@ def run(seed):
 
 
 if __name__ == "__main__":
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "prompt",
+        type=str,
+        help="prompt to generate image",
+        default="the temple of fire by Ross Tran and Gerardo Dottori, oil on canvas",
+    )
+    args = parser.parse_args()
+
     # 2a. Save your samples
     save_location = "outputs/%T-%I-%P.png"
 
@@ -395,7 +405,7 @@ if __name__ == "__main__":
 
     # 3a. Configuration
     # prompt = "the temple of fire by Ross Tran and Gerardo Dottori, oil on canvas"
-    prompt = "a photo of an astronaut riding a horse on mars"
+    prompt = args.prompt
     # input_file = "https://cdn.discordapp.com/attachments/947643942298595401/1036567210191245402/unknown.png"
     num_samples = 1
     batch_size = 1
@@ -425,7 +435,7 @@ if __name__ == "__main__":
     #     )
     # ).convert("RGB")
     input_image = sd_generate_image(prompt)
-    input_image.save("outputs/tmp.png")
+    input_image.save("tmp.png")
 
     # 3c. Run the model
     # Model configuration values
