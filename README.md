@@ -6,7 +6,7 @@ Base notebook: https://colab.research.google.com/drive/1o1qYJcFeywzCIdkfKJy7cTpg
 ```bash
 $ conda create --name sd01 python=3.10.12
 $ conda activate sd01
-
+$ pip install -r requirements.txt
+$ cd ./src
+$ python run.py
 ```
-
-Memo: .pyをGeneratorとUpscalerに分けたい
