@@ -30,46 +30,6 @@ from ldm.util import instantiate_from_config
 import k_diffusion as K
 
 
-# 2b. Save your samples
-def clean_prompt(prompt):
-    badchars = re.compile(r"[/\\]")
-    prompt = badchars.sub("_", prompt)
-    if len(prompt) > 100:
-        prompt = prompt[:100] + "…"
-    return prompt
-
-
-def format_filename(timestamp, seed, index, prompt):
-    string = save_location
-    string = string.replace("%T", f"{timestamp}")
-    string = string.replace("%S", f"{seed}")
-    string = string.replace("%I", f"{index:02}")
-    string = string.replace("%P", clean_prompt(prompt))
-    return string
-
-
-def save_image(image, **kwargs):
-    filename = format_filename(**kwargs)
-    os.makedirs(os.path.dirname(filename), exist_ok=True)
-    image.save(filename)
-
-
-# 2c. Fetch models
-def fetch(url_or_path):
-    if url_or_path.startswith("http:") or url_or_path.startswith("https:"):
-        _, ext = os.path.splitext(os.path.basename(url_or_path))
-        cachekey = hashlib.md5(url_or_path.encode("utf-8")).hexdigest()
-        cachename = f"{cachekey}{ext}"
-        if not os.path.exists(f"cache/{cachename}"):
-            os.makedirs("tmp", exist_ok=True)
-            os.makedirs("cache", exist_ok=True)
-            cmd = f"curl '{url_or_path}' -o 'tmp/{cachename}'"
-            os.system(cmd)  #!curl '{url_or_path}' -o 'tmp/{cachename}'
-            os.rename(f"tmp/{cachename}", f"cache/{cachename}")
-        return f"cache/{cachename}"
-    return url_or_path
-
-
 class NoiseLevelAndTextConditionedUpscaler(nn.Module):
     def __init__(self, inner_model, sigma_data=1.0, embed_dim=256):
         super().__init__()
@@ -94,56 +54,6 @@ class NoiseLevelAndTextConditionedUpscaler(nn.Module):
             cross_cond_padding=cross_cond_padding,
             **kwargs,
         )
-
-
-def make_upscaler_model(
-    config_path, model_path, pooler_dim=768, train=False, device="cpu"
-):
-    config = K.config.load_config(open(config_path))
-    model = K.config.make_model(config)
-    model = NoiseLevelAndTextConditionedUpscaler(
-        model,
-        sigma_data=config["model"]["sigma_data"],
-        embed_dim=config["model"]["mapping_cond_dim"] - pooler_dim,
-    )
-    ckpt = torch.load(model_path, map_location="cpu")
-    model.load_state_dict(ckpt["model_ema"])
-    model = K.config.make_denoiser_wrapper(config)(model)
-    if not train:
-        model = model.eval().requires_grad_(False)
-    return model.to(device)
-
-
-def download_from_huggingface(repo, filename):
-    while True:
-        try:
-            return huggingface_hub.hf_hub_download(repo, filename)
-        except HTTPError as e:
-            if e.response.status_code == 401:
-                # Need to log into huggingface api
-                huggingface_hub.interpreter_login()
-                continue
-            elif e.response.status_code == 403:
-                # Need to do the click through license thing
-                print(
-                    f"Go here and agree to the click through license on your account: https://huggingface.co/{repo}"
-                )
-                input("Hit enter when ready:")
-                continue
-            else:
-                raise e
-
-
-# Load models on GPU
-def load_model_from_config(config, ckpt):
-    print(f"Loading model from {ckpt}")
-    pl_sd = torch.load(ckpt, map_location="cpu")
-    sd = pl_sd["state_dict"]
-    config = OmegaConf.load(config)
-    model = instantiate_from_config(config.model)
-    m, u = model.load_state_dict(sd, strict=False)
-    model = model.to(cpu).eval().requires_grad_(False)
-    return model
 
 
 # Set up some functions and load the text encoder
@@ -224,6 +134,96 @@ class CLIPEmbedder(nn.Module):
             cross_cond_padding.to(self.device),
             clip_out.pooler_output,
         )
+
+
+# 2b. Save your samples
+def clean_prompt(prompt):
+    badchars = re.compile(r"[/\\]")
+    prompt = badchars.sub("_", prompt)
+    if len(prompt) > 100:
+        prompt = prompt[:100] + "…"
+    return prompt
+
+
+def format_filename(timestamp, seed, index, prompt):
+    string = save_location
+    string = string.replace("%T", f"{timestamp}")
+    string = string.replace("%S", f"{seed}")
+    string = string.replace("%I", f"{index:02}")
+    string = string.replace("%P", clean_prompt(prompt))
+    return string
+
+
+def save_image(image, **kwargs):
+    filename = format_filename(**kwargs)
+    os.makedirs(os.path.dirname(filename), exist_ok=True)
+    image.save(filename)
+
+
+# 2c. Fetch models
+def fetch(url_or_path):
+    if url_or_path.startswith("http:") or url_or_path.startswith("https:"):
+        _, ext = os.path.splitext(os.path.basename(url_or_path))
+        cachekey = hashlib.md5(url_or_path.encode("utf-8")).hexdigest()
+        cachename = f"{cachekey}{ext}"
+        if not os.path.exists(f"cache/{cachename}"):
+            os.makedirs("tmp", exist_ok=True)
+            os.makedirs("cache", exist_ok=True)
+            cmd = f"curl '{url_or_path}' -o 'tmp/{cachename}'"
+            os.system(cmd)  #!curl '{url_or_path}' -o 'tmp/{cachename}'
+            os.rename(f"tmp/{cachename}", f"cache/{cachename}")
+        return f"cache/{cachename}"
+    return url_or_path
+
+
+def make_upscaler_model(
+    config_path, model_path, pooler_dim=768, train=False, device="cpu"
+):
+    config = K.config.load_config(open(config_path))
+    model = K.config.make_model(config)
+    model = NoiseLevelAndTextConditionedUpscaler(
+        model,
+        sigma_data=config["model"]["sigma_data"],
+        embed_dim=config["model"]["mapping_cond_dim"] - pooler_dim,
+    )
+    ckpt = torch.load(model_path, map_location="cpu")
+    model.load_state_dict(ckpt["model_ema"])
+    model = K.config.make_denoiser_wrapper(config)(model)
+    if not train:
+        model = model.eval().requires_grad_(False)
+    return model.to(device)
+
+
+def download_from_huggingface(repo, filename):
+    while True:
+        try:
+            return huggingface_hub.hf_hub_download(repo, filename)
+        except HTTPError as e:
+            if e.response.status_code == 401:
+                # Need to log into huggingface api
+                huggingface_hub.interpreter_login()
+                continue
+            elif e.response.status_code == 403:
+                # Need to do the click through license thing
+                print(
+                    f"Go here and agree to the click through license on your account: https://huggingface.co/{repo}"
+                )
+                input("Hit enter when ready:")
+                continue
+            else:
+                raise e
+
+
+# Load models on GPU
+def load_model_from_config(config, ckpt):
+    print(f"Loading model from {ckpt}")
+    pl_sd = torch.load(ckpt, map_location="cpu")
+    sd = pl_sd["state_dict"]
+    config = OmegaConf.load(config)
+    model = instantiate_from_config(config.model)
+    m, u = model.load_state_dict(sd, strict=False)
+    model = model.to(cpu).eval().requires_grad_(False)
+    return model
 
 
 # 3c. Run the model
@@ -434,8 +434,9 @@ if __name__ == "__main__":
     #         "https://models.rivershavewings.workers.dev/assets/sd_2x_upscaler_demo.png"
     #     )
     # ).convert("RGB")
+    os.makedirs("outputs/original", exist_ok=True)
     input_image = sd_generate_image(prompt)
-    input_image.save(f"tmp-{prompt}.png")
+    input_image.save(f"outputs/original/{prompt}.png")
 
     # 3c. Run the model
     # Model configuration values
