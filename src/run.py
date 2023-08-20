@@ -353,7 +353,7 @@ def run(seed):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument(
-        "prompt",
+        "--prompt",
         type=str,
         help="prompt to generate image",
         default="the temple of fire by Ross Tran and Gerardo Dottori, oil on canvas",
@@ -435,7 +435,7 @@ if __name__ == "__main__":
     #     )
     # ).convert("RGB")
     input_image = sd_generate_image(prompt)
-    input_image.save("tmp.png")
+    input_image.save(f"tmp-{prompt}.png")
 
     # 3c. Run the model
     # Model configuration values

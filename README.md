@@ -8,5 +8,6 @@ $ conda create --name sd01 python=3.10.12
 $ conda activate sd01
 $ pip install -r requirements.txt
 $ cd ./src
-$ python run.py
+$ python run.py --prompt <your prompt>
 ```
+Your generated image will be stored in "./src/outputs".
