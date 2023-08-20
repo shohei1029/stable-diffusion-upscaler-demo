@@ -6,6 +6,7 @@ import numpy as np
 import time
 import re
 import requests
+from requests.exceptions import HTTPError
 import io
 import hashlib
 from subprocess import Popen
@@ -14,6 +15,8 @@ import torch
 from torch import nn
 import torch.nn.functional as F
 
+from diffusers import StableDiffusionPipeline
+import huggingface_hub
 from PIL import Image
 from einops import rearrange
 from omegaconf import OmegaConf
@@ -24,10 +27,6 @@ from tqdm.notebook import tqdm, trange
 from functools import partial
 from ldm.util import instantiate_from_config
 import k_diffusion as K
-
-# 2c. Fetch models
-from requests.exceptions import HTTPError
-import huggingface_hub
 
 
 # 2b. Save your samples
@@ -232,6 +231,17 @@ def condition_up(prompts):
     return text_encoder_up(tok_up(prompts))
 
 
+def sd_generate_image(prompt):
+    model_id = "runwayml/stable-diffusion-v1-5"
+    pipe = StableDiffusionPipeline.from_pretrained(model_id, torch_dtype=torch.float16)
+    pipe = pipe.to("cuda")
+
+    image = pipe(prompt).images[0]
+    del pipe
+    torch.cuda.empty_cache()
+    return image
+
+
 @torch.no_grad()
 def run(seed):
     timestamp = int(time.time())
@@ -341,7 +351,7 @@ def run(seed):
 
 if __name__ == "__main__":
     # 2a. Save your samples
-    save_location = "stable-diffusion-upscaler/%T-%I-%P.png"
+    save_location = "outputs/%T-%I-%P.png"
 
     # 2c. Fetch models
     model_up = make_upscaler_model(
@@ -384,7 +394,8 @@ if __name__ == "__main__":
     text_encoder_up = CLIPEmbedder(device=device)
 
     # 3a. Configuration
-    prompt = "the temple of fire by Ross Tran and Gerardo Dottori, oil on canvas"
+    # prompt = "the temple of fire by Ross Tran and Gerardo Dottori, oil on canvas"
+    prompt = "a photo of an astronaut riding a horse on mars"
     # input_file = "https://cdn.discordapp.com/attachments/947643942298595401/1036567210191245402/unknown.png"
     num_samples = 1
     batch_size = 1
@@ -407,12 +418,14 @@ if __name__ == "__main__":
     # Set seed to 0 to use the current time:
     seed = 0
 
-    # 3b. Upload image for upscaling
-    input_image = Image.open(
-        fetch(
-            "https://models.rivershavewings.workers.dev/assets/sd_2x_upscaler_demo.png"
-        )
-    ).convert("RGB")
+    # # 3b. Upload image for upscaling
+    # input_image = Image.open(
+    #     fetch(
+    #         "https://models.rivershavewings.workers.dev/assets/sd_2x_upscaler_demo.png"
+    #     )
+    # ).convert("RGB")
+    input_image = sd_generate_image(prompt)
+    input_image.save("outputs/tmp.png")
 
     # 3c. Run the model
     # Model configuration values
